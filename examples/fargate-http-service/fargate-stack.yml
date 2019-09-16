@@ -1,0 +1,72 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Creates ECS Faregate running service
+Parameters:
+  FargatePublicPrivateVPCURL:
+    Type: String
+    Description: The url of a cloudformation template to create the public and private
+                 VPC to run fargate on.
+
+  FargateServiceURL:
+    Type: String
+    Description: The url of a cloudformation template to create the fargate service.
+
+  Route53StackURL:
+    Type: String
+    Description: The url of a cloudformation template to create Route53 recordsets
+
+  StackTTL:
+    Type: Number
+    Default: 30
+    Description: The number of minutes that will take for this stack to be removed automatically.
+
+  ImageURL:
+    Type: String
+    Description: The url of a docker image that contains the application process that
+                 will handle the traffic for this service.
+  ContainerPort:
+    Type: Number
+    Description: What port number the application inside the docker container is binding to.
+
+  ServiceDomain:
+    Type: String
+    Description: The Domain name the service will be available at.
+
+  HostedZoneId:
+    Type: String
+    Description: The hosted zone id in route 53 to add the record to.
+
+Resources:
+
+  VPC:
+    Type: "AWS::CloudFormation::Stack"
+    Properties:
+      TemplateURL: !Ref FargatePublicPrivateVPCURL
+
+  Service:
+    Type: "AWS::CloudFormation::Stack"
+    Properties:
+      TemplateURL: !Ref FargateServiceURL
+      Parameters:
+        StackName: 
+          Fn::GetAtt: VPC.Outputs.StackName
+        ServiceName: !Ref 'AWS::StackName'
+        ImageUrl: !Ref ImageURL
+        ContainerPort: !Ref ContainerPort
+
+  Route53:
+    Type: "AWS::CloudFormation::Stack"
+    Properties:
+      TemplateURL: !Ref Route53StackURL
+      Parameters:
+        StackName: 
+          Fn::GetAtt: VPC.Outputs.StackName
+        ServiceDomain: !Ref ServiceDomain
+        HostedZoneId: !Ref HostedZoneId
+
+  DeleteAfterTTLStack:
+    Type: "AWS::CloudFormation::Stack"
+    Properties:
+      TemplateURL: https://educalleja-misc.s3-eu-west-1.amazonaws.com/deleteStack.yml
+      Parameters:
+        StackName: !Ref 'AWS::StackName'
+        TTL: !Ref StackTTL

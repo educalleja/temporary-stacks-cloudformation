@@ -1,0 +1,32 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Creates an Ec2 Instance that gets terminated after timeout
+Parameters:
+  StackTTL:
+    Type: Number
+    Default: 5
+    Description: The number of minutes that will take for this stack to be removed automatically.
+
+Resources:
+
+  # Resources in temporary stack
+  MyEC2Instance: 
+    Type: AWS::EC2::Instance
+    Properties: 
+      ImageId: ami-0fad7378adf284ce0
+      InstanceType: t3.micro
+      BlockDeviceMappings: 
+      - DeviceName: "/dev/sdm"
+        Ebs: 
+          VolumeType: "io1"
+          Iops: "200"
+          DeleteOnTermination: "true"
+          VolumeSize: "20"
+
+  # This nested stack will trigger an event to delete all its resources after the supplied StackTTL.
+  DeleteAfterTTLStack:
+    Type: "AWS::CloudFormation::Stack"
+    Properties:
+      TemplateURL: https://educalleja-misc.s3-eu-west-1.amazonaws.com/deleteStack.yml
+      Parameters:
+        StackName: !Ref AWS::StackName
+        TTL: !Ref StackTTL

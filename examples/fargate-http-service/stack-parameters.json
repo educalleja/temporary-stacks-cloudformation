@@ -1,0 +1,7 @@
+{
+    "FargatePublicPrivateVPCURL": "https://educalleja-misc.s3-eu-west-1.amazonaws.com/fargate-public-private-vpc.yml",
+    "FargateServiceURL": "https://educalleja-misc.s3-eu-west-1.amazonaws.com/fargate-service.yml",
+    "DeleteAfterTTLStackURL": "https://educalleja-misc.s3-eu-west-1.amazonaws.com/deleteStack.yml",
+    "Route53StackURL": "https://educalleja-misc.s3-eu-west-1.amazonaws.com/route53.yml",
+    "HostedZoneId": "Z4WXR9EH7LMUD"
+}

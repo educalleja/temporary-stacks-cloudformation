@@ -1,0 +1,31 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Route53 configuration to route traffic to load balancer created in fargate service
+Parameters:
+  StackName:
+    Type: String
+    Default: production
+    Description: The name of the parent Fargate networking stack that you created. Necessary
+                 to locate and reference resources created by that stack.
+  ServiceDomain:
+    Type: String
+    Description: The Domain name the service will be available at.
+
+  HostedZoneId:
+    Type: String
+    Description: The hosted zone id in route 53.
+
+Resources:
+
+  ServiceDNSRecordSet:  
+    Type: AWS::Route53::RecordSet
+    Properties: 
+      Name: !Ref ServiceDomain
+      HostedZoneId: !Ref HostedZoneId
+      Type: A
+      AliasTarget: 
+        DNSName:
+          Fn::ImportValue:
+            !Join [':', [!Ref 'StackName', 'ExternalDNSName']]
+        HostedZoneId:
+          Fn::ImportValue:
+            !Join [':', [!Ref 'StackName', 'ExternalLBHostedZone']]

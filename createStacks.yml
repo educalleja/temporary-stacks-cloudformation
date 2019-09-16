@@ -1,0 +1,186 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Creates the necessary infrastructure to build cloudformation stacks on demand using a lambda function.
+Resources:
+  CreateCFNLambda:
+    Type: AWS::Lambda::Function
+    DependsOn:
+      - CFNAdminRole
+    Properties:
+      FunctionName: !Sub "${AWS::StackName}-createCFStackOnDemand"
+      Code:
+        ZipFile: |
+          import boto3
+          import os
+          import json
+          import urllib.request
+          import urllib.parse
+
+          clientCF = boto3.client('cloudformation')
+          clientIAM = boto3.client('iam')
+
+          def get_cf_admin_role():
+              response = clientIAM.get_role(RoleName='CFAdminRoleCreateStacks')
+              arn = response.get('Role', {}).get('Arn', '')
+              return arn
+
+          def get_parameters_from_url(url):
+              f = urllib.request.urlopen(url)
+              parameters = json.loads(f.read().decode('utf-8'))
+              return [{"ParameterKey": p, "ParameterValue": v} for p, v in parameters.items()]
+
+          def get_extra_parameters(event):
+              return [{"ParameterKey": p, "ParameterValue": v} for p, v in event.get("extra_parameters", {}).items()]
+
+          def create_cfn(event, context):
+              parameters=[]
+              if event.get('template_parameters') != None:
+                  parameters=get_parameters_from_url(event.get('template_parameters'))
+              
+              # Attaching additional parameters coming from event
+              parameters += get_extra_parameters(event)
+
+              clientCF.create_stack(
+                  StackName=event.get('stack_name'),
+                  TemplateURL=event.get('template_url'),
+                  Parameters=parameters,
+                  RoleARN=get_cf_admin_role(),
+                  Capabilities=['CAPABILITY_IAM'],
+              )
+              
+              return {
+                  'statusCode': 200,
+                  'body': 'Stack %s created successfully ' % event.get('stack_name')
+              }
+      Handler: "index.create_cfn"
+      Runtime: "python3.6"
+      Timeout: "5"
+      Role: !GetAtt CFNAdminRole.Arn
+      Tags: 
+        - 
+          Key: "cloudFormationStackName"
+          Value: !Ref AWS::StackName
+  
+  PolicyCreateCFNlambda:
+    Type: AWS::Lambda::Permission
+    DependsOn:
+      - CreateCFNLambda
+      - CreateCFNPOSTMethod
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref CreateCFNLambda
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 
+        # Values in SourceArn are slightly hardcoded as we can't read from
+        # their respective resources 
+        - arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${restApiId}/*/POST/stack
+        - { restApiId: !Ref RestAPI}
+
+  CFNAdminRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: CFAdminRoleCreateStacks
+      Description: Grants admin access to cloudformation and lambda.
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          -
+            Effect: "Allow"
+            Principal:
+              Service:
+                - "cloudformation.amazonaws.com" 
+            Action: 
+              - "sts:AssumeRole"
+          -
+            Effect: "Allow"
+            Principal:
+              Service:
+                - "lambda.amazonaws.com" 
+            Action: 
+              - "sts:AssumeRole"
+      Path: "/"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AdministratorAccess
+      Tags: 
+        - 
+          Key: "cloudFormationStackName"
+          Value: !Ref AWS::StackName
+        - 
+          Key: "cfadminaccessrole"
+          Value: "1"
+      
+  RestAPI:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: !Ref AWS::StackName
+      Description: Rest API that serves as a gateway to create cloudformation stacks
+  
+  CreateCFNEndpoint:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      ParentId: !GetAtt RestAPI.RootResourceId
+      PathPart: 'stack'
+      RestApiId: !Ref RestAPI
+  
+  CreateCFNPOSTMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      OperationName: CreateStack
+      HttpMethod: POST
+      ResourceId: !Ref CreateCFNEndpoint
+      RestApiId: !Ref RestAPI
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS
+        Uri: !Sub
+          - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaArn}/invocations
+          - { LambdaArn: !GetAtt CreateCFNLambda.Arn }
+        IntegrationHttpMethod: POST
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseTemplates:
+              application/json: ""
+
+      MethodResponses:
+        - StatusCode: 200
+          ResponseModels:
+            application/json: Empty
+      
+  CreateCFNOPTIONSMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      HttpMethod: OPTIONS
+      ResourceId: !Ref CreateCFNEndpoint
+      RestApiId: !Ref RestAPI
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        RequestTemplates:
+          application/json: |
+            {"statusCode": 200}
+        PassthroughBehavior: WHEN_NO_MATCH
+        IntegrationResponses:
+          - StatusCode: 200
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Headers: false
+          ResponseModels:
+            application/json: Empty
+
+  RestApiDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn:
+      - CreateCFNPOSTMethod
+    Properties:
+      Description: Production deployment
+      RestApiId: !Ref RestAPI
+      StageName: prod
+
+Outputs:
+  ProductionStageUrl:
+    "Description" : Production URL
+    "Value" : !Sub
+      - "https://${restApiId}.execute-api.${AWS::Region}.amazonaws.com/prod"
+      - { restApiId: !Ref RestAPI}
