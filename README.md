@@ -1,7 +1,7 @@
 
 
-Temporary stacks over http
---------------------------
+Temporary CF stacks on http.
+----------------------------
 
 These set of cloudformation templates allow creating stacks via http requests or cli commands.
 The created stacks will be deleted automatically after a defined timeout. This is especially useful when we want services to be running during a limited period of time. 
