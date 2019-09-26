@@ -43,9 +43,10 @@ $ curl -d '{"template_url": "https://educalleja-misc.s3-eu-west-1.amazonaws.com/
 
 Start an docker container running Nginx on AWS ECS Fargate
 ```
-payload='{"template_url": "https://educalleja-misc.s3-eu-west-1.amazonaws.com/examples/fargate-stack.yml", "stack_name":"farga", "extra_parameters": {"FargatePublicPrivateVPCURL": "https://educalleja-misc.s3-eu-west-1.amazonaws.com/examples/fargate-public-private-vpc.yml","FargateServiceURL": "https://educalleja-misc.s3-eu-west-1.amazonaws.com/examples/fargate-service.yml", "Route53StackURL": "https://educalleja-misc.s3-eu-west-1.amazonaws.com/examples/route53.yml", "StackTTL": "15", "ImageURL": "educalleja/http-hello-world",  "ContainerPort": "80", "ServiceDomain": "fargateService.educalleja.com", "HostedZoneId": "Z4WXR9EH7LMUD" }}'
-curl -d '$payload' -H "Content-Type: application/json" -X POST https://[restapi-id].execute-api.[region].amazonaws.com/prod/stack
+$ payload='{"template_url": "https://educalleja-misc.s3-eu-west-1.amazonaws.com/examples/fargate-stack.yml", "stack_name":"farga", "extra_parameters": {"FargatePublicPrivateVPCURL": "https://educalleja-misc.s3-eu-west-1.amazonaws.com/examples/fargate-public-private-vpc.yml","FargateServiceURL": "https://educalleja-misc.s3-eu-west-1.amazonaws.com/examples/fargate-service.yml", "Route53StackURL": "https://educalleja-misc.s3-eu-west-1.amazonaws.com/examples/route53.yml", "StackTTL": "15", "ImageURL": "educalleja/http-hello-world",  "ContainerPort": "80", "ServiceDomain": "fargateService.example.com", "HostedZoneId": "Z4WXR9EH7LMUD" }}'
+$ curl -d "$payload" -H "Content-Type: application/json" -X POST https://[restapi-id].execute-api.[region].amazonaws.com/prod/stack
 ```
+After the previous commands, a website served by nginx on ECS will be deployed at http://fargateService.example.com. Make sure the Hosted Zone Id provided managed the right superdomain.
 
 **Attention:** 
 These cloudformation stacks create roles that have AdministratorAccess that could represent a security concern. Use with caution.
